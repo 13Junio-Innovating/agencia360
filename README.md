@@ -1,5 +1,7 @@
 # Agência 360
 
+[![CI](https://github.com/13Junio-Innovating/agencia360/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/13Junio-Innovating/agencia360/actions)
+
 Aplicação full-stack com frontend React (Vite + TypeScript + Tailwind) e backend Node/Express, integrada ao Supabase. Inclui fluxo de produtos, carrinho, checkout mock e testes automatizados.
 
 ## Stack
