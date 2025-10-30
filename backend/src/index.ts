@@ -44,15 +44,43 @@ app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), (req,
 // Agora aplicar JSON para demais rotas
 app.use(express.json());
 
+// Middleware de logs estruturados
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  res.on('finish', () => {
+    const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+    // Log JSON para fácil ingestão em observabilidade
+    console.log(JSON.stringify({
+      level: 'info',
+      ts: new Date().toISOString(),
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      duration_ms: Math.round(durationMs),
+      query: req.query,
+    }));
+  });
+  next();
+});
+
 // Healthcheck
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, version: '1.0.0' });
 });
 
-// Listar produtos
-app.get('/api/products', async (_req, res) => {
+// Listar produtos com paginação e ordenação via query params
+app.get('/api/products', async (req, res) => {
   try {
-    const products = await listProducts();
+    const page = Number(req.query.page ?? '1');
+    const pageSize = Number(req.query.pageSize ?? '20');
+    const sortBy = typeof req.query.sortBy === 'string' && ['name', 'price'].includes(req.query.sortBy)
+      ? (req.query.sortBy as 'name' | 'price')
+      : 'name';
+    const sortOrder = typeof req.query.sortOrder === 'string' && ['asc', 'desc'].includes(req.query.sortOrder)
+      ? (req.query.sortOrder as 'asc' | 'desc')
+      : 'asc';
+
+    const products = await listProducts({ page, pageSize, sortBy, sortOrder });
     return res.json(products);
   } catch (e) {
     console.error(e);
