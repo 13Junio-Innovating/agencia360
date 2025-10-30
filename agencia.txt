@@ -1,0 +1,102 @@
+
+> **Papel:** Você é um engenheiro full-stack sênior e um UX/UI designer experiente. Entregue um sistema profissional, seguro, performático e com design premium, pronto para uso em produção.
+>
+> **Objetivo:** Criar uma **plataforma de agência 360° especializada em e-commerce e CRM de vendas**, onde é possível gerenciar **lojas, produtos, pedidos, clientes, campanhas de marketing, automações de vendas e faturamento** em um único sistema.
+>
+> **Descrição geral:**
+> A aplicação deve permitir que administradores e clientes da agência acompanhem todo o funil comercial — desde a aquisição do lead até a conversão em venda e o faturamento — integrando dados de campanhas, estoque, pedidos, pagamentos e performance de vendas.
+>
+> ---
+>
+> ### ⚙️ **Requisitos técnicos (inclui pagamentos)**
+>
+> **1. Autenticação e usuários**
+>
+> * Login, cadastro e recuperação de senha usando **Supabase Auth**.
+> * Níveis de acesso: **Administrador (agência)** e **Cliente (lojista)**.
+>
+> **2. Painel administrativo (para agência)**
+>
+> * Dashboard com métricas (vendas, pedidos, faturamento, leads, ROI).
+> * CRUD de clientes (lojistas), produtos, campanhas e planos.
+> * Histórico de pagamentos e faturas.
+>
+> **3. Painel do cliente (lojista)**
+>
+> * Gestão de pedidos, produtos, estoque, clientes (CRM) e faturamento.
+> * Criação de cobranças (pagamentos únicos) e planos de assinatura (se aplicável).
+> * Visualização do status de pagamento e recibos.
+>
+> **4. Módulo CRM de Vendas**
+>
+> * Leads, funil drag-and-drop, histórico de interações e tarefas.
+> * Automação para enviar cobranças quando um pedido é concluído.
+>
+> **5. Pagamentos via script (implementação exigida)**
+>
+> * Implementar **scripts de pagamento** para os métodos: **Pix, cartão de crédito e boleto** usando **MercadoPago**, **Stripe** e **Asaas** (ou combinação conforme melhor ajuste).
+> * Cada script deve:
+>
+>   * Gerar cobrança a partir do pedido / fatura (valor, cliente, descrição, idempotency key).
+>   * Retornar a URL de checkout (ou dados de pagamento Pix — QR code/copia e cola).
+>   * Persistir transação no banco (Supabase) com status inicial `pending`.
+> * **Webhooks:** criar endpoints serverless para receber notificações (payment succeeded, failed, refunded). Webhooks devem validar assinaturas (secret) e atualizar o status da transação/ordem.
+> * **Recibos e faturas:** gerar PDF/CSV de recibos automaticamente após pagamento confirmado; enviar por e-mail.
+> * **Segurança e conformidade:** usar chaves secretas no ambiente (never expose in frontend), usar idempotency keys e validar montantes no webhook para evitar fraudes.
+> * **Ambientes de testes:** incluir scripts/configurações para usar os ambientes de sandbox/test da MercadoPago/Stripe/Asaas.
+> * **Retry & idempotência:** lógica para reprocessamento seguro de webhooks e tentativas limitadas.
+>
+> **6. Relatórios e métricas**
+>
+> * Gráficos com Recharts (vendas por período, conversão por campanha, receita recorrente).
+> * Filtros por data, loja e categoria; exportação CSV/PDF.
+>
+> **7. Automação e integrações**
+>
+> * Placeholders e conectores para Shopify, Mercado Livre, Meta Ads e Google Ads.
+> * Integração com Brevo para e-mail e Twilio/Zenvia para WhatsApp.
+> * Webhooks para sincronizar pedidos e pagamentos entre sistemas.
+>
+> ---
+>
+> ### 💻 **Stack recomendada e detalhes de implementação**
+>
+> * **Frontend:** React + TypeScript + Tailwind CSS + Vite. Implementar fluxo de checkout que chama o endpoint `/api/create-payment` e redireciona para checkout (ou exibe QR Pix).
+> * **Backend:** Supabase (Auth, Database, Storage, Functions) + serverless functions (Vercel / Supabase Functions) para rotas de pagamento e webhooks.
+> * **Pagamentos (exemplos):**
+>
+>   * **MercadoPago:** criar `createMercadoPagoPayment(order)` que retorna `init_point` (checkout) ou `qr_code` para Pix; endpoint `/api/webhook/mercadopago`.
+>   * **Stripe:** usar Payment Intents / Checkout Sessions; endpoint `/api/webhook/stripe` para `checkout.session.completed`.
+>   * **Asaas:** para Pix e boletos via Asaas API, com webhook `/api/webhook/asaas`.
+> * **Banco:** Supabase PostgreSQL para armazenar `orders`, `payments`, `invoices`, `webhook_events`.
+> * **Gráficos:** Recharts.
+> * **Deploy:** Vercel / Netlify (frontend) + Supabase functions (backend) ou Vercel Serverless Functions.
+>
+> ---
+>
+> ### 🔐 **Boas práticas de segurança**
+>
+> * Nunca expor chaves secretas no frontend.
+> * Validar todas as notações de webhook com assinatura HMAC.
+> * Usar idempotency keys nas solicitações de pagamento.
+> * Registrar logs de webhook e auditoria de transações.
+>
+> ---
+>
+> ### 🧾 **Funcionalidades extra (opcionais, mas desejáveis)**
+>
+> * Planos de assinatura com cobrança recorrente (Stripe Subscriptions).
+> * Dashboard de conciliação de pagamentos (mostrar pagamentos pendentes vs confirmados).
+> * Integração com gateway fiscal ou geração de nota fiscal (placeholder).
+>
+> ---
+>
+> ### 📘 **Documentação e entrega**
+>
+> * Código modular e comentado: módulos `payments`, `orders`, `crm`, `reports`.
+> * Exemplos / scripts de seed para criar pedidos e simular pagamentos em sandbox.
+> * Guia de deploy e instruções para configurar chaves de API, webhooks e ambiente.
+>
+> ---
+>
+> **Resultado esperado:** Uma aplicação web profissional e funcional, com checkout integrado via scripts (MercadoPago, Stripe, Asaas), webhooks confiáveis e fluxo completo de pedido → cobrança → confirmação → recibo, pronta para ser usada por lojas e clientes da agência.

@@ -18,7 +18,7 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 app.use(cors({ origin: FRONTEND_ORIGIN }));
 
 // Stripe webhook precisa do raw body para validação
-app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), (req, res) => {
+app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
     const sig = req.headers['stripe-signature'];
     if (!sig || !STRIPE_WEBHOOK_SECRET) {
