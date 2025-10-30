@@ -6,6 +6,7 @@ import Stripe from 'stripe';
 import { createOrder, getOrder, updateOrderStatus } from './repo/orders';
 import type { PaymentMethod } from './models/order';
 import { listProducts } from './repo/products';
+import { createPayment, findPaymentByProviderId, updatePaymentStatus } from './repo/payments';
 
 dotenv.config();
 
@@ -32,8 +33,14 @@ app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), (req,
     }
 
     if (event.type === 'checkout.session.completed' || event.type === 'payment_intent.succeeded') {
-      const orderId = (event.data.object as any).metadata?.order_id as string | undefined;
+      const object: any = event.data.object as any;
+      const orderId = object.metadata?.order_id as string | undefined;
+      const providerPaymentId = object.id as string | undefined;
       if (orderId) updateOrderStatus(orderId, 'paid').catch(console.error);
+      if (providerPaymentId) {
+        const payment = await findPaymentByProviderId(providerPaymentId).catch(() => null);
+        if (payment) await updatePaymentStatus(payment.id, 'succeeded');
+      }
     }
     return res.json({ received: true });
   } catch (e) {
@@ -88,11 +95,11 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// Criar pagamento e persistir ordem
+// Criar pagamento e persistir ordem (Stripe real com fallback)
 app.post('/api/create-payment', async (req, res) => {
   try {
-    const { amount, currency, method, orderId } = req.body as {
-      amount: number; currency: string; method: PaymentMethod; orderId?: string;
+    const { amount, currency, method } = req.body as {
+      amount: number; currency: string; method: PaymentMethod;
     };
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: 'Valor inválido' });
@@ -101,14 +108,36 @@ app.post('/api/create-payment', async (req, res) => {
       return res.status(400).json({ error: 'Método inválido' });
     }
 
-    // Simula criação no provedor e gera URL/QR
     let checkoutUrl: string | null = null;
     let pixQrCode: string | null = null;
-    let providerPaymentId: string | null = `prov_${Date.now()}`;
+    let providerPaymentId: string | null = null;
 
-    if (method === 'pix') {
+    if (method === 'stripe' && process.env.STRIPE_SECRET_KEY) {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      const successUrl = process.env.CHECKOUT_SUCCESS_URL || `${FRONTEND_ORIGIN}/payment-success`;
+      const cancelUrl = process.env.CHECKOUT_CANCEL_URL || `${FRONTEND_ORIGIN}/payment-cancel`;
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency,
+            product_data: { name: 'Pagamento Agência 360' },
+            unit_amount: Math.round(amount * 100),
+          },
+          quantity: 1,
+        }],
+        success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${cancelUrl}?session_id={CHECKOUT_SESSION_ID}`,
+        metadata: {},
+      });
+      checkoutUrl = session.url ?? null;
+      providerPaymentId = session.id;
+    } else if (method === 'pix') {
+      providerPaymentId = `pix_${Date.now()}`;
       pixQrCode = `PIX-${providerPaymentId}-${amount}`;
     } else {
+      providerPaymentId = `prov_${Date.now()}`;
       const providerBase = {
         mercadopago: 'https://www.mercadopago.com.br/checkout',
         stripe: 'https://checkout.stripe.com/pay',
@@ -118,6 +147,12 @@ app.post('/api/create-payment', async (req, res) => {
     }
 
     const order = await createOrder({ amount, currency, method, checkoutUrl, pixQrCode, providerPaymentId });
+    // Persiste transação em payments
+    try {
+      await createPayment({ order_id: order.id, provider: method as any, amount, currency, provider_payment_id: providerPaymentId ?? null });
+    } catch (err) {
+      console.warn('Falha ao persistir payment', err);
+    }
     return res.json({ id: order.id, method, status: order.status, checkoutUrl, pix: pixQrCode ? { qrCode: pixQrCode } : undefined });
   } catch (e) {
     console.error(e);
